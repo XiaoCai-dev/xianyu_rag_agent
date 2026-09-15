@@ -13,14 +13,16 @@ class ChatContextManager:
     支持按会话ID检索对话历史，以及议价次数统计。
     """
     
-    def __init__(self, max_history=100, db_path="data/chat_history.db"):
+    def __init__(self, max_history=100, db_path=None):
         """
         初始化聊天上下文管理器
-        
+
         Args:
             max_history: 每个对话保留的最大消息数
-            db_path: SQLite数据库文件路径
+            db_path: SQLite数据库文件路径（默认读 CHAT_DB_PATH 环境变量，兜底 data/chat_history.db）
         """
+        if db_path is None:
+            db_path = os.getenv("CHAT_DB_PATH", "data/chat_history.db")
         self.max_history = max_history
         self.db_path = db_path
         self._init_db()

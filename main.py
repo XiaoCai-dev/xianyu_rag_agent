@@ -111,7 +111,7 @@ class XianyuLive:
 
     async def control_loop(self):
         """控制命令队列轮询：执行可视化平台下发的命令（热更新等）。"""
-        poll_interval = int(os.getenv("CONTROL_POLL_INTERVAL", "10"))
+        poll_interval = int(os.getenv("CONTROL_POLL_INTERVAL") or "10")
         while True:
             try:
                 pending = self.context_manager.fetch_pending_controls(limit=5)

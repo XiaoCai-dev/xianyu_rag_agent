@@ -27,9 +27,11 @@ def _ensure_env_file():
 
 # 可管理的配置项定义：key → (显示名, 是否敏感)
 CONFIG_FIELDS = {
-    "API_KEY":            ("API Key", True),
-    "MODEL_BASE_URL":     ("模型地址", False),
-    "MODEL_NAME":         ("模型名称", False),
+    "API_KEY":            ("LLM API Key", True),
+    "MODEL_BASE_URL":     ("LLM 地址", False),
+    "MODEL_NAME":         ("LLM 模型名称", False),
+    "EMBEDDING_API_KEY":  ("Embedding API Key", True),
+    "EMBEDDING_BASE_URL": ("Embedding 地址", False),
     "EMBEDDING_MODEL":    ("Embedding 模型", False),
     "COOKIES_STR":        ("闲鱼 Cookie", True),
     "TOGGLE_KEYWORDS":    ("人工接管关键词", False),
@@ -40,8 +42,9 @@ CONFIG_FIELDS = {
 
 # 敏感字段的掩码值，GET 时返回，PUT 时如果值等于掩码则跳过不修改
 SENSITIVE_MASKED = {
-    "API_KEY":     "••••••••••••••••",
-    "COOKIES_STR": "••••••••••••••••",
+    "API_KEY":          "••••••••••••••••",
+    "EMBEDDING_API_KEY":"••••••••••••••••",
+    "COOKIES_STR":      "••••••••••••••••",
 }
 
 
@@ -75,6 +78,8 @@ class ConfigUpdate(BaseModel):
     API_KEY: Optional[str] = None
     MODEL_BASE_URL: Optional[str] = None
     MODEL_NAME: Optional[str] = None
+    EMBEDDING_API_KEY: Optional[str] = None
+    EMBEDDING_BASE_URL: Optional[str] = None
     EMBEDDING_MODEL: Optional[str] = None
     COOKIES_STR: Optional[str] = None
     TOGGLE_KEYWORDS: Optional[str] = None

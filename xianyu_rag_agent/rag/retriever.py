@@ -38,11 +38,13 @@ class RAGRetriever:
         self.cm = context_manager  # ChatContextManager，用于元数据表 CRUD
         self.store = ChromaStore(persist_dir, collection_name)
 
-        # 复用主项目的 API_KEY / MODEL_BASE_URL，embedding 走同一供应商
-        self._embed_client = OpenAI(
-            api_key=os.getenv("API_KEY"),
-            base_url=os.getenv("MODEL_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        # Embedding 独立配置：优先用 EMBEDDING_API_KEY / EMBEDDING_BASE_URL，
+        # 未配置时回退到 LLM 的 API_KEY / MODEL_BASE_URL
+        embed_api_key = os.getenv("EMBEDDING_API_KEY") or os.getenv("API_KEY")
+        embed_base_url = os.getenv("EMBEDDING_BASE_URL") or os.getenv(
+            "MODEL_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
+        self._embed_client = OpenAI(api_key=embed_api_key, base_url=embed_base_url)
         self._embed_model = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
 
     # ---------- embedding ----------
