@@ -187,6 +187,24 @@ python -m xianyu_rag_agent.rag.cli stats
 
 ---
 
+### 效果展示
+
+<div align="center">
+  <img src="./images/dashboard.png" width="600" alt="仪表盘">
+  <br>
+  <em>图1: 仪表盘 - 消息统计与意图分布</em>
+</div>
+
+<br>
+
+<div align="center">
+  <img src="./images/conversations.png" width="600" alt="会话浏览">
+  <br>
+  <em>图2: 会话浏览 - 对话历史与意图标签</em>
+</div>
+
+---
+
 ## 🐳 Docker 部署
 
 ```bash
