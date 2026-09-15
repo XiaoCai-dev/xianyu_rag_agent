@@ -200,7 +200,7 @@ python -m xianyu_rag_agent.rag.cli stats
 <div align="center">
   <img src="./images/conversations.png" width="600" alt="会话浏览">
   <br>
-  <em>图2: 会话浏览 - 对话历史与意图标签</em>
+  <em>图2: 应用信息-配置模型</em>
 </div>
 
 ---
