@@ -1,0 +1,10 @@
+openai==1.65.5
+websockets==13.1
+loguru==0.7.3
+python-dotenv==1.0.1
+requests==2.32.3
+chromadb==0.5.23
+fastapi==0.115.4
+uvicorn==0.32.0
+python-multipart==0.0.17
+

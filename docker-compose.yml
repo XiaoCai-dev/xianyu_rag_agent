@@ -1,0 +1,36 @@
+services:
+  bot:
+    build: .
+    container_name: xianyu-bot
+    restart: always
+    command: python main.py
+    volumes:
+      - ./data:/app/data
+      - ./prompts:/app/prompts
+      - ./.env:/app/.env
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - xianyu-network
+
+  web:
+    build: .
+    container_name: xianyu-web
+    restart: always
+    command: uvicorn web.app:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./data:/app/data
+      - ./prompts:/app/prompts
+      - ./.env:/app/.env
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - xianyu-network
+    depends_on:
+      - bot
+
+networks:
+  xianyu-network:
+    driver: bridge
