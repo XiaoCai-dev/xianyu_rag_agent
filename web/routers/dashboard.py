@@ -20,7 +20,7 @@ def dashboard():
     # 消息统计
     cur.execute("SELECT COUNT(*) AS n FROM messages")
     stats["total_messages"] = cur.fetchone()["n"]
-    cur.execute("SELECT COUNT(*) AS n FROM messages WHERE date(timestamp)=date('now')")
+    cur.execute("SELECT COUNT(*) AS n FROM messages WHERE date(timestamp)=date('now','localtime')")
     stats["today_messages"] = cur.fetchone()["n"]
     cur.execute("SELECT COUNT(*) AS n FROM messages WHERE role='assistant'")
     stats["bot_replies"] = cur.fetchone()["n"]
@@ -49,7 +49,7 @@ def dashboard():
     cur.execute("""
         SELECT date(timestamp) AS day, COUNT(*) AS n
         FROM messages
-        WHERE timestamp >= datetime('now','-6 days','start of day')
+        WHERE timestamp >= datetime('now','-6 days','start of day','localtime')
         GROUP BY day ORDER BY day
     """)
     stats["trend_7d"] = [dict(r) for r in cur.fetchall()]
