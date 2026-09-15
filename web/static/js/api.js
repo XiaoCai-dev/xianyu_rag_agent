@@ -35,4 +35,8 @@ export const api = {
   listPrompts: () => request('/api/prompts'),
   updatePrompt: (key, content, reload = true) =>
     request(`/api/prompts/${key}`, { method: 'PUT', body: { content, reload } }),
+
+  // config
+  getConfig: () => request('/api/config'),
+  updateConfig: (data) => request('/api/config', { method: 'PUT', body: data }),
 };

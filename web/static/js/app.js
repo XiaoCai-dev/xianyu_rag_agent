@@ -6,12 +6,14 @@ import Dashboard from './views/dashboard.js';
 import Conversations from './views/conversations.js';
 import Rag from './views/rag.js';
 import Prompts from './views/prompts.js';
+import Config from './views/config.js';
 
 const PAGES = {
   dashboard: { label: '仪表盘', comp: Dashboard },
   conversations: { label: '会话浏览', comp: Conversations },
   rag: { label: '知识库', comp: Rag },
   prompts: { label: '提示词', comp: Prompts },
+  config: { label: '配置管理', comp: Config },
 };
 
 const App = {

@@ -130,6 +130,11 @@ class XianyuLive:
             if command == "reload_prompts":
                 bot.reload_prompts()
                 self.context_manager.ack_control(cmd_id, "done", "prompts reloaded")
+            elif command == "restart_bot":
+                self.context_manager.ack_control(cmd_id, "done", "restarting")
+                logger.warning("收到重启命令，bot 进程即将退出（Docker 会自动重启）")
+                import signal
+                os.kill(os.getpid(), signal.SIGTERM)
             else:
                 self.context_manager.ack_control(cmd_id, "unknown", f"unknown command: {command}")
             logger.info(f"控制命令执行完成: {command}")

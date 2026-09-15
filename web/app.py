@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from .routers import dashboard, conversations, rag, prompts
+from .routers import dashboard, conversations, rag, prompts, config
 
 app = FastAPI(title="闲鱼 RAG Agent 可视化平台", version="0.1.0")
 
@@ -27,6 +27,7 @@ app.include_router(dashboard.router)
 app.include_router(conversations.router)
 app.include_router(rag.router)
 app.include_router(prompts.router)
+app.include_router(config.router)
 
 
 @app.get("/api/health")
