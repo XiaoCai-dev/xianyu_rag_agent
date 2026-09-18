@@ -3,6 +3,7 @@ import json
 import asyncio
 import time
 import os
+import signal
 import websockets
 from loguru import logger
 from dotenv import load_dotenv, set_key
@@ -12,8 +13,39 @@ import random
 
 
 from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt
+from utils.env_file import ensure_env_file, resolve_env_path
+from utils.logger_setup import setup_logging
 from XianyuAgent import XianyuReplyBot
 from context_manager import ChatContextManager
+
+
+def _in_docker() -> bool:
+    """判断是否运行在容器中（决定重启策略：容器交给 restart 策略，本地自己 execv）。"""
+    return os.path.exists("/.dockerenv") or os.getenv("RUNNING_IN_DOCKER") == "1"
+
+
+# 退出标志：收到 SIGTERM/SIGINT 后置位，用于跳过「等 5 秒重连」
+_SHUTTING_DOWN = {"flag": False}
+
+
+def _install_signal_handlers():
+    """注册退出信号处理。
+
+    必要性：容器里 `python main.py` 就是 PID 1，而 Linux 内核对 PID 1 采用
+    「默认处置的信号一律忽略」的策略——不注册 handler 的话 `docker stop` 只能
+    等满 10 秒宽限期再被 SIGKILL，进程没有机会优雅退出。注册 handler 后信号才会真正送达。
+    """
+    def _stop(signum, _frame):
+        _SHUTTING_DOWN["flag"] = True
+        logger.warning(f"收到退出信号 {signum}（SIGTERM=15 / SIGINT=2），进程即将结束")
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, _stop)
+    try:
+        signal.signal(signal.SIGINT, _stop)
+    except ValueError:
+        # 非主线程调用时会抛错，忽略即可
+        pass
 
 
 class XianyuLive:
@@ -132,15 +164,46 @@ class XianyuLive:
                 self.context_manager.ack_control(cmd_id, "done", "prompts reloaded")
             elif command == "restart_bot":
                 self.context_manager.ack_control(cmd_id, "done", "restarting")
-                logger.warning("收到重启命令，bot 进程即将退出（Docker 会自动重启）")
-                import signal
-                os.kill(os.getpid(), signal.SIGTERM)
+                logger.warning("收到重启命令，bot 进程即将重启以加载新配置...")
+                await asyncio.sleep(0.5)
+                logger.info(f"控制命令执行完成: {command}（进程即将退出，由新实例继续）")
+                await self._restart_process()
+                return
             else:
                 self.context_manager.ack_control(cmd_id, "unknown", f"unknown command: {command}")
             logger.info(f"控制命令执行完成: {command}")
         except Exception as e:
             logger.error(f"控制命令执行失败: {command}: {e}")
             self.context_manager.ack_control(cmd_id, "error", str(e))
+
+    async def _restart_process(self):
+        """重启 bot 进程：容器内退出交给 restart 策略，本地则原地 execv 重启。"""
+        logger.info("日志已落盘，开始重启进程")
+
+        if _in_docker():
+            # 注意：容器里的本进程就是 PID 1，Linux 对 PID 1 的默认信号处置是「忽略」，
+            # 因此 os.kill(SIGTERM) 不会让它退出（早期实现踩过这个坑：命令 ack 成 done，
+            # 但容器 StartCount 不变、配置从未生效）。这里直接退出进程，
+            # 由 compose 的 `restart: always` 拉起新实例——该策略对任何退出码都会重启。
+            logger.info("容器环境：退出当前进程，由 restart: always 拉起新实例")
+            try:
+                sys.stdout.flush()
+                sys.stderr.flush()
+            except Exception:  # noqa: BLE001
+                pass
+            os._exit(0)
+
+        # 本地运行：用同一个解释器重新执行入口脚本，配置由 .env 重新加载
+        try:
+            python = sys.executable
+            argv = [python, os.path.abspath(sys.argv[0])] + sys.argv[1:]
+            logger.info(f"本地就地重启: {' '.join(argv)}")
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os.execv(python, argv)
+        except Exception as e:
+            logger.error(f"就地重启失败，进程退出: {e}")
+            os._exit(0)
 
     async def send_msg(self, ws, cid, toid, text):
         text = {
@@ -744,6 +807,8 @@ class XianyuLive:
                 # 如果是主动重启，立即重连；否则等待5秒
                 if self.connection_restart_flag:
                     logger.info("主动重启连接，立即重连...")
+                elif _SHUTTING_DOWN["flag"]:
+                    logger.info("进程正在退出，不再重连")
                 else:
                     logger.info("等待5秒后重连...")
                     await asyncio.sleep(5)
@@ -758,7 +823,7 @@ def check_and_complete_env():
         "COOKIES_STR": "your_cookies_here"
     }
     
-    env_path = ".env"
+    env_path = resolve_env_path()
     updated = False
     
     for key, placeholder in critical_vars.items():
@@ -766,6 +831,13 @@ def check_and_complete_env():
         
         # 如果变量未设置，或者值等于占位符
         if not curr_val or curr_val == placeholder:
+            # 非交互环境（后台运行/容器/被 web 重启）无法 input，直接报错退出
+            if not sys.stdin.isatty():
+                logger.error(
+                    f"配置项 [{key}] 未设置或仍为占位符，且当前为非交互环境无法输入。"
+                    f"请先在网页「配置管理」或 .env 中填好再启动。"
+                )
+                raise SystemExit(1)
             logger.warning(f"配置项 [{key}] 未设置或为默认值，请输入")
             while True:
                 val = input(f"请输入 {key}: ").strip()
@@ -775,11 +847,7 @@ def check_and_complete_env():
                     
                     # 尝试持久化到 .env
                     try:
-                        # 如果没有.env文件，先创建
-                        if not os.path.exists(env_path):
-                            with open(env_path, 'w', encoding='utf-8') as f:
-                                pass # Create empty file
-                        
+                        ensure_env_file(env_path)
                         set_key(env_path, key, val)
                         updated = True
                     except Exception as e:
@@ -793,30 +861,31 @@ def check_and_complete_env():
 
 
 if __name__ == '__main__':
-    # 加载环境变量
-    if os.path.exists(".env"):
-        load_dotenv()
-        logger.info("已加载 .env 配置")
-    
-    if os.path.exists(".env.example"):
-        load_dotenv(".env.example")  # 不会覆盖已存在的变量
-        logger.info("已加载 .env.example 默认配置")
-    
-    # 配置日志级别
-    log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
-    logger.remove()  # 移除默认handler
-    logger.add(
-        sys.stderr,
-        level=log_level,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
-    )
-    logger.info(f"日志级别设置为: {log_level}")
-    
+    # 加载环境变量（.env 缺失或被 Docker 建成目录时先修好）
+    env_path = ensure_env_file()
+    load_dotenv(env_path)
+    example_path = os.path.join(os.path.dirname(env_path), ".env.example")
+    if os.path.exists(example_path):
+        load_dotenv(example_path)  # 不会覆盖已存在的变量
+
+    # 统一日志：控制台 + 文件（网页「运行日志」页面读取该文件）
+    log_path = setup_logging("bot")
+    logger.info(f"日志级别设置为: {os.getenv('LOG_LEVEL', 'INFO').upper()}")
+    logger.info(f"日志文件: {log_path}")
+
+    # 注册信号处理（容器内本进程是 PID 1，不注册 handler 会收不到 docker stop）
+    _install_signal_handlers()
+
     # 交互式检查并补全配置
     check_and_complete_env()
-    
+    logger.info("配置检查通过")
+
     cookies_str = os.getenv("COOKIES_STR")
     bot = XianyuReplyBot()
     xianyuLive = XianyuLive(cookies_str)
+    logger.info("初始化完成，开始连接闲鱼 IM ...")
     # 常驻进程
-    asyncio.run(xianyuLive.main())
+    try:
+        asyncio.run(xianyuLive.main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.warning("bot 进程已退出")

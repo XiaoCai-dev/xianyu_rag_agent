@@ -1,5 +1,7 @@
 # 环境变量文件（包含敏感信息）
 .env
+# Agent 工作目录（记忆、技能等本地笔记，非项目代码，不上传）
+.workbuddy/
 # 提示词文件
 *_prompt.txt
 # Python缓存文件

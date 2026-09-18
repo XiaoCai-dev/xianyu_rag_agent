@@ -1,16 +1,27 @@
 """FastAPI 应用入口。
 
-启动: uvicorn web.app:app --host 0.0.0.0 --port 8000 --reload
+启动: uvicorn web.app:app --host 0.0.0.0 --port 8000
+
+注意：``web/__init__.py`` 已负责加载 .env，无需在此重复。
 """
 
+import logging
 import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from loguru import logger
 
-from .routers import dashboard, conversations, rag, prompts, config
+from utils.logger_setup import intercept_stdlib_logging, setup_logging
+
+from .routers import dashboard, conversations, rag, prompts, config, logs
+
+# web 进程日志落盘（data/logs/web.log），网页「运行日志」可直接查看
+_log_path = setup_logging("web")
+intercept_stdlib_logging(logging.INFO)
+logger.info(f"Web 服务启动，日志文件: {_log_path}")
 
 app = FastAPI(title="闲鱼 RAG Agent 可视化平台", version="0.1.0")
 
@@ -28,6 +39,7 @@ app.include_router(conversations.router)
 app.include_router(rag.router)
 app.include_router(prompts.router)
 app.include_router(config.router)
+app.include_router(logs.router)
 
 
 @app.get("/api/health")

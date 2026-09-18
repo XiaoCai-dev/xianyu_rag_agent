@@ -1,7 +1,7 @@
 """RAGRetriever — 检索增强生成入口。
 
 职责:
-    - 用 DashScope（OpenAI 兼容）接口计算 embedding；
+    - 通过可切换的 embedding 后端（在线 API / 本地 ONNX）计算向量；
     - ingest: 文档切分 → 批量 embedding → 写入 Chroma + 元数据表；
     - search: query embedding → 向量检索 → 返回拼好的知识文本；
     - delete: 同步删向量库与元数据表。
@@ -13,17 +13,13 @@
 """
 
 import os
-import time
 from typing import Dict, List, Optional
 
 from loguru import logger
-from openai import OpenAI
 
 from .chunker import chunk_text
+from .embedder import build_embedder
 from .store import ChromaStore
-
-# DashScope 单次 embedding 请求条数上限，超量自动分批
-_EMBED_BATCH_SIZE = 25
 
 
 class RAGRetriever:
@@ -38,25 +34,14 @@ class RAGRetriever:
         self.cm = context_manager  # ChatContextManager，用于元数据表 CRUD
         self.store = ChromaStore(persist_dir, collection_name)
 
-        # Embedding 独立配置：优先用 EMBEDDING_API_KEY / EMBEDDING_BASE_URL，
-        # 未配置时回退到 LLM 的 API_KEY / MODEL_BASE_URL
-        embed_api_key = os.getenv("EMBEDDING_API_KEY") or os.getenv("API_KEY")
-        embed_base_url = os.getenv("EMBEDDING_BASE_URL") or os.getenv(
-            "MODEL_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        )
-        self._embed_client = OpenAI(api_key=embed_api_key, base_url=embed_base_url)
-        self._embed_model = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
+        # 向量化后端：由 EMBEDDING_PROVIDER 决定（api / local / off / auto）
+        self.embedder = build_embedder()
+        logger.info(f"Embedding 后端就绪: {self.embedder.describe()}")
 
     # ---------- embedding ----------
     def _embed(self, texts: List[str]) -> List[List[float]]:
-        """批量计算 embedding，自动分批。"""
-        all_vecs: List[List[float]] = []
-        for i in range(0, len(texts), _EMBED_BATCH_SIZE):
-            batch = texts[i:i + _EMBED_BATCH_SIZE]
-            resp = self._embed_client.embeddings.create(model=self._embed_model, input=batch)
-            # OpenAI 兼容协议保证按 input 顺序返回
-            all_vecs.extend([d.embedding for d in resp.data])
-        return all_vecs
+        """批量计算 embedding。"""
+        return self.embedder.embed(texts)
 
     # ---------- 写入 ----------
     def ingest(
@@ -145,8 +130,10 @@ class RAGRetriever:
             n_results=top_k,
         )
 
-        # 过滤距离过远的弱相关结果
-        filtered = [r for r in results if r["distance"] <= 0.6]
+        # 过滤距离过远的弱相关结果（阈值随 embedding 后端变化，见 _max_distance）
+        threshold = self._max_distance()
+        filtered = [r for r in results if r["distance"] <= threshold]
+        logger.debug(f"RAG 检索命中 {len(results)} 条，阈值 {threshold} 过滤后保留 {len(filtered)} 条")
         if not filtered:
             return ""
 
@@ -154,6 +141,22 @@ class RAGRetriever:
         for idx, r in enumerate(filtered, 1):
             lines.append(f"[{idx}] {r['content']}")
         return "\n".join(lines)
+
+    def _max_distance(self) -> float:
+        """弱相关过滤阈值。
+
+        不同 embedding 后端的余弦距离分布差异很大（本地 ONNX 模型对中文的
+        距离整体偏大），沿用固定的 0.6 会把正确结果一起滤掉，因此：
+            - 显式配置 RAG_MAX_DISTANCE 时以其为准；
+            - 否则 api 后端用 0.6，本地后端用 0.75。
+        """
+        raw = (os.getenv("RAG_MAX_DISTANCE") or "").strip()
+        if raw:
+            try:
+                return float(raw)
+            except ValueError:
+                logger.warning(f"RAG_MAX_DISTANCE 不是合法数字: {raw}，改用默认值")
+        return 0.6 if getattr(self.embedder, "provider", "") == "api" else 0.75
 
     def _build_where(self, item_id: Optional[str]) -> Optional[Dict]:
         """构造 Chroma where 过滤条件。"""
@@ -181,7 +184,9 @@ class RAGRetriever:
 
     def stats(self) -> Dict:
         return {
+            "available": True,
             "vector_count": self.store.count(),
             "doc_count": len(self.list_documents()),
-            "embedding_model": self._embed_model,
+            "embedding": self.embedder.describe(),
+            "max_distance": self._max_distance(),
         }

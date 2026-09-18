@@ -9,11 +9,14 @@ __pycache__/
 .env
 .DS_Store
 .vscode/
+.idea/
 *.log
 data/
 images/
 backups/
+docs/
+.workbuddy/
 Dockerfile
 docker-compose.yml
 .dockerignore
-# README.md 
+# README.md

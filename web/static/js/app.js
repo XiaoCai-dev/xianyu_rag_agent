@@ -7,6 +7,7 @@ import Conversations from './views/conversations.js';
 import Rag from './views/rag.js';
 import Prompts from './views/prompts.js';
 import Config from './views/config.js';
+import Logs from './views/logs.js';
 
 const PAGES = {
   dashboard: { label: '仪表盘', comp: Dashboard },
@@ -14,6 +15,7 @@ const PAGES = {
   rag: { label: '知识库', comp: Rag },
   prompts: { label: '提示词', comp: Prompts },
   config: { label: '配置管理', comp: Config },
+  logs: { label: '运行日志', comp: Logs },
 };
 
 const App = {

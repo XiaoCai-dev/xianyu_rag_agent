@@ -59,9 +59,10 @@ class XianyuApis:
             # 获取当前cookies的字符串形式
             cookie_str = '; '.join([f"{cookie.name}={cookie.value}" for cookie in self.session.cookies])
             
-            # 读取.env文件
-            env_path = os.path.join(os.getcwd(), '.env')
-            if not os.path.exists(env_path):
+            # 读取.env文件（用绝对路径，避免受工作目录影响 / 容器挂载差异）
+            from utils.env_file import resolve_env_path
+            env_path = resolve_env_path()
+            if not os.path.exists(env_path) or os.path.isdir(env_path):
                 logger.warning(".env文件不存在，无法更新COOKIES_STR")
                 return
                 

@@ -22,6 +22,26 @@
     .chat-user { background: #e8f4ff; align-self: flex-end; }
     .chat-bot { background: #f5f5f5; align-self: flex-start; }
     .intent-tag { font-size: 11px; }
+
+    /* 运行日志终端视图 */
+    .log-view {
+      background: #0f1420; border-radius: 8px; padding: 12px 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px; line-height: 1.7; height: calc(100vh - 330px);
+      min-height: 260px; overflow: auto; color: #c8d3e0;
+    }
+    .log-line { display: flex; gap: 10px; white-space: pre-wrap; word-break: break-word; }
+    .log-line:hover { background: #161d2e; }
+    .log-time { color: #6b7a90; flex-shrink: 0; }
+    .log-level { flex-shrink: 0; width: 64px; font-weight: 600; text-align: center; border-radius: 3px; }
+    .log-msg { flex: 1; }
+    .lv-DEBUG { color: #7d8ea3; }
+    .lv-INFO { color: #4fb3ff; }
+    .lv-SUCCESS { color: #4ade80; }
+    .lv-WARNING { color: #f5a524; }
+    .lv-ERROR, .lv-CRITICAL { color: #ff6b6b; }
+    .lv-PLAIN { color: #4b5566; }
+    .log-empty { color: #6b7a90; text-align: center; padding: 40px 0; }
   </style>
 </head>
 <body>

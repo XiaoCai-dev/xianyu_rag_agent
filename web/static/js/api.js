@@ -39,4 +39,13 @@ export const api = {
   // config
   getConfig: () => request('/api/config'),
   updateConfig: (data) => request('/api/config', { method: 'PUT', body: data }),
+  testConfig: (targets) => request('/api/config/test', { method: 'POST', body: { targets } }),
+
+  // logs
+  logSources: () => request('/api/logs/sources'),
+  readLogs: (source = 'bot', lines = 300, level = '', keyword = '') =>
+    request(`/api/logs?source=${source}&lines=${lines}&level=${encodeURIComponent(level)}` +
+            `&keyword=${encodeURIComponent(keyword)}`),
+  clearLogs: (source = 'bot') => request(`/api/logs?source=${source}`, { method: 'DELETE' }),
+  logDownloadUrl: (source = 'bot') => `/api/logs/download?source=${source}`,
 };

@@ -2,14 +2,23 @@ services:
   bot:
     build: .
     container_name: xianyu-bot
+    # always 是必须的：网页「配置管理」保存后会发 restart_bot 命令，
+    # 容器内进程收到 SIGTERM 退出，靠该策略拉起新进程以加载新配置
     restart: always
     command: python main.py
     volumes:
-      - ./data:/app/data
-      - ./prompts:/app/prompts
-      - ./.env:/app/.env
+      - ./data:/app/data          # SQLite + Chroma + logs 三个进程共享
+      - ./prompts:/app/prompts    # 提示词热更新
+      - ./.env:/app/.env          # 网页在线改配置后持久化到宿主机
     environment:
       - TZ=Asia/Shanghai
+      - RUNNING_IN_DOCKER=1
+      - LOG_DIR=/app/data/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - xianyu-network
 
@@ -26,6 +35,19 @@ services:
       - "8000:8000"
     environment:
       - TZ=Asia/Shanghai
+      - RUNNING_IN_DOCKER=1
+      - LOG_DIR=/app/data/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - xianyu-network
     depends_on:

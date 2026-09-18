@@ -4,7 +4,9 @@ loguru==0.7.3
 python-dotenv==1.0.1
 requests==2.32.3
 chromadb==0.5.23
+# 本地向量模型（EMBEDDING_PROVIDER=local）运行时，chromadb 已依赖，
+# 这里显式声明以便离线部署时单独排查
+onnxruntime>=1.17.0
 fastapi==0.115.4
 uvicorn==0.32.0
 python-multipart==0.0.17
-

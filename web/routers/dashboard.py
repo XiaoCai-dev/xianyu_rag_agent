@@ -3,7 +3,7 @@
 import sqlite3
 from fastapi import APIRouter
 
-from ..deps import get_context_manager, get_rag
+from ..deps import get_context_manager, get_rag, get_rag_error
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -58,6 +58,9 @@ def dashboard():
 
     # RAG 概况
     rag = get_rag()
-    stats["rag"] = rag.stats() if rag else {"available": False}
+    if rag:
+        stats["rag"] = rag.stats()
+    else:
+        stats["rag"] = {"available": False, "error": get_rag_error()}
 
     return stats
